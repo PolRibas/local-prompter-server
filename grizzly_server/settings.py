@@ -16,9 +16,6 @@ SECRET_KEY = 'django-insecure-in%l5%*o(*5+!bg)fl#$=$e!sgqckvlg1qmdww2%m=-%n6mpi1
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -145,10 +142,15 @@ SIMPLE_JWT = {
 # grizzly_server/settings.py
 
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3001",
-    "http://localhost:3000",
-    "http://grizzly.local",
-    "http://www.grizzly.local",
-    # Añade otros orígenes si es necesario
-]
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3001",
+#     "http://localhost:3000",
+#     "http://grizzly.local",
+#     "http://www.grizzly.local",
+#     "http://192.168.1.92",
+#     "http://127.0.0.1",
+#     # Añade otros orígenes si es necesario
+# ]
+CORS_ALLOW_ALL_ORIGINS = True
+
+ALLOWED_HOSTS = ["*"]
