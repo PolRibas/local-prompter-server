@@ -1,0 +1,20 @@
+# Entorno virtual
+venv/
+*.bin
+*.pt
+*.safetensors
+
+# Ignora cache de modelos (cambiar ruta según tu caso)
+.cache/
+huggingface_models/
+
+# Archivos de Python compilados
+__pycache__/
+*.pyc
+
+# Datos
+data/raw/
+data/processed/
+
+# Configuraciones locales
+.env
