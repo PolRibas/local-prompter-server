@@ -1,7 +1,19 @@
 # api/serializers.py
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Conversation
+from .models import Conversation, ChatSession, ConversationMessage
+
+class ConversationMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConversationMessage
+        fields = ['id', 'role', 'content', 'type', 'timestamp']
+
+class ChatSessionSerializer(serializers.ModelSerializer):
+    messages = ConversationMessageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ChatSession
+        fields = ['id', 'model_code', 'created_at', 'messages']
 
 
 class UserSerializer(serializers.ModelSerializer):

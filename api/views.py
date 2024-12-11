@@ -9,6 +9,10 @@ from .models_config import AI_MODELS  # Asegúrate de importar la lista estátic
 from .models import Conversation
 from .serializers import ConversationSerializer
 from rest_framework import status
+from integrations.AI.ai_factory import get_ai_instance
+from django.shortcuts import get_object_or_404
+from .models import ChatSession, ConversationMessage
+from .serializers import ChatSessionSerializer
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -46,6 +50,16 @@ class AIModelListView(generics.ListAPIView):
 
     def get_queryset(self):
         return AI_MODELS
+
+class AIModelDetailView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, code):
+        # Buscar el modelo con el code dado
+        for m in AI_MODELS:
+            if m['id'] == code:  # o si el campo es 'code' y no 'id', ajústalo
+                return Response(m)
+        return Response({'detail': 'Modelo no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
     
 class ConversationListCreateView(generics.ListCreateAPIView):
     serializer_class = ConversationSerializer
@@ -78,3 +92,71 @@ class UserDetailView(generics.RetrieveDestroyAPIView):
         # Si llegamos aquí, el usuario existe
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ChatView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        """
+        Espera:
+        {
+          "chat_id": optional,
+          "model_code": optional,
+          "message": "Hola, ¿cómo estás?" 
+        }
+        Si no se da chat_id, se crea uno nuevo con el model_code dado (o por defecto).
+        Si se da chat_id, se usa ese chat y su model_code.
+        Obtiene el historial de la base de datos, añade el nuevo mensaje del usuario,
+        llama a la IA y añade la respuesta del asistente.
+        Retorna el chat_id y la lista actualizada de mensajes.
+        """
+        chat_id = request.data.get('chat_id')
+        model_code = request.data.get('model_code', 'Llama-3.1-8B-Instruct')
+        user_message = request.data.get('message')
+        if not user_message:
+            return Response({'detail': 'Falta message.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if chat_id:
+            chat_session = get_object_or_404(ChatSession, pk=chat_id, user=request.user)
+            # Usar el model_code del chat ya existente
+            model_code = chat_session.model_code
+        else:
+            # Crear un nuevo chat
+            chat_session = ChatSession.objects.create(user=request.user, model_code=model_code)
+
+        # Obtener historial
+        history = chat_session.messages.order_by('timestamp')
+        messages = []
+        # Cargar mensajes previos en el formato esperado por la IA
+        # Opcionalmente podrías añadir un system prompt inicial
+        for msg in history:
+            messages.append({"role": msg.role, "content": msg.content})
+
+        # Añadir el nuevo mensaje del usuario
+        messages.append({"role": "user", "content": user_message})
+
+        # Llamar a la IA
+        try:
+            ai = get_ai_instance(model_code)
+            response_text = ai.generate_response(messages)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'detail': 'Error interno al generar respuesta.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Guardar el mensaje del usuario y la respuesta
+        ConversationMessage.objects.create(
+            chat_session=chat_session,
+            role='user',
+            content=user_message
+        )
+        ConversationMessage.objects.create(
+            chat_session=chat_session,
+            role='assistant',
+            content=response_text
+        )
+
+        # Retornar el chat con el historial actualizado
+        serializer = ChatSessionSerializer(chat_session)
+        return Response(serializer.data)
